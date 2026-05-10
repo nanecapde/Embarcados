@@ -161,4 +161,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nEncerrando e limpando GPIO...")
         GPIO.cleanup()
-        sys.exit(0)
