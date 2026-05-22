@@ -74,22 +74,13 @@ def crc16(data):
 
         for _ in range(8):
 
-            if (crc & 1) != 0:
+            if crc & 1:
                 crc >>= 1
                 crc ^= 0xA001
             else:
                 crc >>= 1
 
     return crc
-
-def adicionar_crc(data):
-
-    crc = crc16(data)
-
-    return data + bytes([
-        crc & 0xFF,
-        (crc >> 8) & 0xFF
-    ])
 
 def validar_crc(data):
 
@@ -165,11 +156,15 @@ def solicitar_string_simples():
 
     n = tamanho[0]
 
+    if n > 100:
+        print("ERRO: tamanho inválido")
+        return
+
     resposta = receber(n)
 
     print("RESP  :", hex_bytes(tamanho + resposta))
 
-    print("STRING:", resposta.decode())
+    print("STRING:", resposta.decode(errors='ignore'))
 
 def enviar_int_simples(valor):
 
@@ -249,11 +244,15 @@ def enviar_string_simples(texto):
 
     n = tamanho[0]
 
+    if n > 100:
+        print("ERRO: tamanho inválido")
+        return
+
     resposta = receber(n)
 
     print("RESP  :", hex_bytes(tamanho + resposta))
 
-    print("STRING:", resposta.decode())
+    print("STRING:", resposta.decode(errors='ignore'))
 
 # =========================================================
 # MODBUS
@@ -278,7 +277,6 @@ def criar_pacote_modbus(funcao, subcodigo, payload=b''):
 
     return pacote
 
-
 def verificar_exception(resposta):
 
     if len(resposta) >= 2:
@@ -290,7 +288,7 @@ def verificar_exception(resposta):
             print("EXCEÇÃO MODBUS")
 
             if len(resposta) >= 3:
-                print("CÓDIGO:", resposta[2])
+                print("CÓDIGO EXCEÇÃO:", resposta[2])
 
             return True
 
@@ -312,6 +310,9 @@ def solicitar_int_modbus():
     resposta = receber(6)
 
     print("RESP  :", hex_bytes(resposta))
+
+    if verificar_exception(resposta):
+        return
 
     if len(resposta) != 6:
         print("ERRO: timeout")
@@ -337,6 +338,9 @@ def solicitar_float_modbus():
     resposta = receber(6)
 
     print("RESP  :", hex_bytes(resposta))
+
+    if verificar_exception(resposta):
+        return
 
     if len(resposta) != 6:
         print("ERRO: timeout")
@@ -367,6 +371,10 @@ def solicitar_string_modbus():
 
     n = tamanho[0]
 
+    if n > 100:
+        print("ERRO: tamanho inválido")
+        return
+
     dados_crc = receber(n + 2)
 
     pacote_resposta = tamanho + dados_crc
@@ -383,7 +391,7 @@ def solicitar_string_modbus():
 
     string_bytes = dados_crc[:-2]
 
-    print("STRING:", string_bytes.decode())
+    print("STRING:", string_bytes.decode(errors='ignore'))
 
 # =========================================================
 # MODBUS - ENVIAR
@@ -407,6 +415,9 @@ def enviar_int_modbus(valor):
     resposta = receber(6)
 
     print("RESP  :", hex_bytes(resposta))
+
+    if verificar_exception(resposta):
+        return
 
     if len(resposta) != 6:
         print("ERRO: timeout")
@@ -438,6 +449,9 @@ def enviar_float_modbus(valor):
     resposta = receber(6)
 
     print("RESP  :", hex_bytes(resposta))
+
+    if verificar_exception(resposta):
+        return
 
     if len(resposta) != 6:
         print("ERRO: timeout")
@@ -483,6 +497,10 @@ def enviar_string_modbus(texto):
 
     n = tamanho[0]
 
+    if n > 100:
+        print("ERRO: tamanho inválido")
+        return
+
     dados_crc = receber(n + 2)
 
     pacote_resposta = tamanho + dados_crc
@@ -499,7 +517,7 @@ def enviar_string_modbus(texto):
 
     string_bytes = dados_crc[:-2]
 
-    print("STRING:", string_bytes.decode())
+    print("STRING:", string_bytes.decode(errors='ignore'))
 
 # =========================================================
 # MENU
