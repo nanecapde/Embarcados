@@ -26,17 +26,11 @@ ser = serial.Serial(
 MATRICULA = [0, 2, 2, 4, 7, 1]
 
 # =========================================================
-# CONFIG MODBUS
-# =========================================================
-
-ENDERECO = 0x01
-
-# =========================================================
 # UTILITÁRIOS
 # =========================================================
 
 def hex_bytes(data):
-    return ' '.join(f'0x{b:02X}' for b in data)
+    return ' '.join(f'{b:02X}' for b in data)
 
 def pack_int(valor):
     return struct.pack('<i', valor)
@@ -50,11 +44,7 @@ def pack_float(valor):
 def unpack_float(data):
     return struct.unpack('<f', data)[0]
 
-def limpar_buffer():
-    ser.reset_input_buffer()
-
 def enviar(data):
-    limpar_buffer()
     ser.write(data)
 
 def receber(qtd):
@@ -77,33 +67,14 @@ def crc16(data):
             if (crc & 1) != 0:
                 crc >>= 1
                 crc ^= 0xA001
+
             else:
                 crc >>= 1
 
     return crc
 
-def adicionar_crc(data):
-
-    crc = crc16(data)
-
-    return data + bytes([
-        crc & 0xFF,
-        (crc >> 8) & 0xFF
-    ])
-
-def validar_crc(data):
-
-    if len(data) < 2:
-        return False
-
-    recebido = data[-2] | (data[-1] << 8)
-
-    calculado = crc16(data[:-2])
-
-    return recebido == calculado
-
 # =========================================================
-# SIMPLE
+# PROTOCOLO SIMPLIFICADO
 # =========================================================
 
 def solicitar_int_simples():
@@ -117,7 +88,7 @@ def solicitar_int_simples():
 
     resposta = receber(4)
 
-    print("RESP  :", hex_bytes(resposta))
+    print("RESP :", hex_bytes(resposta))
 
     if len(resposta) != 4:
         print("ERRO: timeout")
@@ -138,7 +109,7 @@ def solicitar_float_simples():
 
     resposta = receber(4)
 
-    print("RESP  :", hex_bytes(resposta))
+    print("RESP :", hex_bytes(resposta))
 
     if len(resposta) != 4:
         print("ERRO: timeout")
@@ -167,7 +138,7 @@ def solicitar_string_simples():
 
     resposta = receber(n)
 
-    print("RESP  :", hex_bytes(tamanho + resposta))
+    print("RESP :", hex_bytes(tamanho + resposta))
 
     print("STRING:", resposta.decode())
 
@@ -186,7 +157,7 @@ def enviar_int_simples(valor):
 
     resposta = receber(4)
 
-    print("RESP  :", hex_bytes(resposta))
+    print("RESP :", hex_bytes(resposta))
 
     if len(resposta) != 4:
         print("ERRO: timeout")
@@ -211,7 +182,7 @@ def enviar_float_simples(valor):
 
     resposta = receber(4)
 
-    print("RESP  :", hex_bytes(resposta))
+    print("RESP :", hex_bytes(resposta))
 
     if len(resposta) != 4:
         print("ERRO: timeout")
@@ -224,10 +195,6 @@ def enviar_float_simples(valor):
 def enviar_string_simples(texto):
 
     texto_bytes = texto.encode()
-
-    if len(texto_bytes) > 255:
-        print("ERRO: string muito grande")
-        return
 
     pacote = (
         bytes([0xB3])
@@ -251,13 +218,15 @@ def enviar_string_simples(texto):
 
     resposta = receber(n)
 
-    print("RESP  :", hex_bytes(tamanho + resposta))
+    print("RESP :", hex_bytes(tamanho + resposta))
 
     print("STRING:", resposta.decode())
 
 # =========================================================
-# MODBUS
+# MODBUS MODIFICADO
 # =========================================================
+
+ENDERECO = 0x01
 
 def criar_pacote_modbus(funcao, subcodigo, payload=b''):
 
@@ -269,27 +238,25 @@ def criar_pacote_modbus(funcao, subcodigo, payload=b''):
         + bytes(MATRICULA)
     )
 
-    return adicionar_crc(pacote)
+    crc = crc16(pacote)
 
-def verificar_exception(resposta):
+    pacote += bytes([
+        crc & 0xFF,
+        (crc >> 8) & 0xFF
+    ])
 
-    if len(resposta) >= 2:
+    return pacote
 
-        funcao = resposta[1]
+def validar_crc(data):
 
-        if funcao & 0x80:
+    recebido = data[-2] | (data[-1] << 8)
 
-            print("EXCEÇÃO MODBUS")
+    calculado = crc16(data[:-2])
 
-            if len(resposta) >= 3:
-                print("CÓDIGO:", resposta[2])
-
-            return True
-
-    return False
+    return recebido == calculado
 
 # =========================================================
-# MODBUS - SOLICITAR
+# MODBUS - SOLICITAÇÕES
 # =========================================================
 
 def solicitar_int_modbus():
@@ -301,19 +268,15 @@ def solicitar_int_modbus():
 
     enviar(pacote)
 
-    resposta = receber(6)
+    resposta = receber(4)
 
-    print("RESP  :", hex_bytes(resposta))
+    print("RESP :", hex_bytes(resposta))
 
-    if len(resposta) != 6:
+    if len(resposta) != 4:
         print("ERRO: timeout")
         return
 
-    if not validar_crc(resposta):
-        print("ERRO: CRC inválido")
-        return
-
-    valor = unpack_int(resposta[:4])
+    valor = unpack_int(resposta)
 
     print("VALOR:", valor)
 
@@ -326,19 +289,15 @@ def solicitar_float_modbus():
 
     enviar(pacote)
 
-    resposta = receber(6)
+    resposta = receber(4)
 
-    print("RESP  :", hex_bytes(resposta))
+    print("RESP :", hex_bytes(resposta))
 
-    if len(resposta) != 6:
+    if len(resposta) != 4:
         print("ERRO: timeout")
         return
 
-    if not validar_crc(resposta):
-        print("ERRO: CRC inválido")
-        return
-
-    valor = unpack_float(resposta[:4])
+    valor = unpack_float(resposta)
 
     print("VALOR:", valor)
 
@@ -359,26 +318,14 @@ def solicitar_string_modbus():
 
     n = tamanho[0]
 
-    dados_crc = receber(n + 2)
+    resposta = receber(n)
 
-    pacote_resposta = tamanho + dados_crc
+    print("RESP :", hex_bytes(tamanho + resposta))
 
-    print("RESP  :", hex_bytes(pacote_resposta))
-
-    if len(dados_crc) != n + 2:
-        print("ERRO: timeout")
-        return
-
-    if not validar_crc(pacote_resposta):
-        print("ERRO: CRC inválido")
-        return
-
-    string_bytes = dados_crc[:-2]
-
-    print("STRING:", string_bytes.decode())
+    print("STRING:", resposta.decode())
 
 # =========================================================
-# MODBUS - ENVIAR
+# MODBUS - ENVIOS
 # =========================================================
 
 def enviar_int_modbus(valor):
@@ -396,19 +343,15 @@ def enviar_int_modbus(valor):
 
     enviar(pacote)
 
-    resposta = receber(6)
+    resposta = receber(4)
 
-    print("RESP  :", hex_bytes(resposta))
+    print("RESP :", hex_bytes(resposta))
 
-    if len(resposta) != 6:
+    if len(resposta) != 4:
         print("ERRO: timeout")
         return
 
-    if not validar_crc(resposta):
-        print("ERRO: CRC inválido")
-        return
-
-    resultado = unpack_int(resposta[:4])
+    resultado = unpack_int(resposta)
 
     print("RESULTADO:", resultado)
 
@@ -427,29 +370,21 @@ def enviar_float_modbus(valor):
 
     enviar(pacote)
 
-    resposta = receber(6)
+    resposta = receber(4)
 
-    print("RESP  :", hex_bytes(resposta))
+    print("RESP :", hex_bytes(resposta))
 
-    if len(resposta) != 6:
+    if len(resposta) != 4:
         print("ERRO: timeout")
         return
 
-    if not validar_crc(resposta):
-        print("ERRO: CRC inválido")
-        return
-
-    resultado = unpack_float(resposta[:4])
+    resultado = unpack_float(resposta)
 
     print("RESULTADO:", resultado)
 
 def enviar_string_modbus(texto):
 
     texto_bytes = texto.encode()
-
-    if len(texto_bytes) > 255:
-        print("ERRO: string muito grande")
-        return
 
     payload = (
         bytes([len(texto_bytes)])
@@ -475,23 +410,11 @@ def enviar_string_modbus(texto):
 
     n = tamanho[0]
 
-    dados_crc = receber(n + 2)
+    resposta = receber(n)
 
-    pacote_resposta = tamanho + dados_crc
+    print("RESP :", hex_bytes(tamanho + resposta))
 
-    print("RESP  :", hex_bytes(pacote_resposta))
-
-    if len(dados_crc) != n + 2:
-        print("ERRO: timeout")
-        return
-
-    if not validar_crc(pacote_resposta):
-        print("ERRO: CRC inválido")
-        return
-
-    string_bytes = dados_crc[:-2]
-
-    print("STRING:", string_bytes.decode())
+    print("STRING:", resposta.decode())
 
 # =========================================================
 # MENU
@@ -501,7 +424,7 @@ while True:
 
     print("""
 =================================================
-                UART + MODBUS
+            UART + MODBUS
 =================================================
 
 1  - Solicitar INT simples
