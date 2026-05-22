@@ -20,10 +20,10 @@ ser = serial.Serial(
 
 # =========================================================
 # MATRÍCULA (6 últimos dígitos)
-# EXEMPLO: 022471
+# EXEMPLO: 042303
 # =========================================================
 
-MATRICULA = [0, 2, 2, 4, 7, 1]
+MATRICULA = [0, 4, 2, 3, 0, 3]
 
 # =========================================================
 # CONFIG MODBUS
@@ -96,7 +96,7 @@ def validar_crc(data):
     if len(data) < 2:
         return False
 
-    recebido = data[-2] | (data[-1] << 8)
+    recebido = (data[-2] << 8) | data[-1]
 
     calculado = crc16(data[:-2])
 
@@ -269,7 +269,15 @@ def criar_pacote_modbus(funcao, subcodigo, payload=b''):
         + bytes(MATRICULA)
     )
 
-    return adicionar_crc(pacote)
+    crc = crc16(pacote)
+
+    pacote += bytes([
+        (crc >> 8) & 0xFF,
+        crc & 0xFF
+    ])
+
+    return pacote
+
 
 def verificar_exception(resposta):
 
